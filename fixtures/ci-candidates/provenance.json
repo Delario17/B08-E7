@@ -1,6 +1,6 @@
 {
   "candidate_file": "DeepSeek-E5.Dockerfile",
-  "sha256": "ede21b0fab394071641526e2fccefc41565efb00de6fb54d9d5b906aebeb535d",
+  "sha256": "1f94ff0d4cd38463a1a192aa9dd9426ebf848e1793055318052aef156296de5e",
   "provider": "DeepSeek",
   "acquisition": "Manual transfer of E5 error-driven prompt; no API call in CI",
   "model_version": "Not recorded",
