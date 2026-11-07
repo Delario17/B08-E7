@@ -1,0 +1,12 @@
+{
+  "provider": "DeepSeek",
+  "model_version": "DeepSeek V4.1 Flash",
+  "date": "2026-11-01",
+  "prompt_path": "work/e5-zyl-20261101-103032/model/error/prompt.txt",
+  "raw_response_path": "work/e5-zyl-20261101-103032/model/error/model-response.txt",
+  "candidate_path": "work/e5-zyl-20261101-103032/candidates/error-02/Dockerfile",
+  "candidate_sha256": "92d1cb0b766427c2d598a0641f03b2e04bc702bfb3e9d7bda4541fd88b17d92c",
+  "manual_changes": [],
+  "selection_reason": "将错误驱动和上下文驱动的六份候选合并比较。合并反斜杠续行并归一化空白后，error-02与context-01完全一致，是出现次数最多的相同候选组，因此按R2优先选取该组，以error-02作为实际构建输入。候选保留固定FROM、WORKDIR、COPY、RUN make和CMD，在RUN make之前增加build-essential安装，并清理apt索引。",
+  "is_recorded_replay": false
+}
