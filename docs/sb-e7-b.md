@@ -70,6 +70,10 @@ Gate 整体退出码为 0，`gate-result.json` 的 `passed=true`。六项检查�
 
 本仓库已包含 `.github/workflows/e7-quality-gate.yml`，分支 push 和 PR 会触发 `e7-b-quality-gate`。个人分支推送后应保存对应 Actions 运行和 PR 检查链接。
 
+个人分支提交 `9751ff379ff3ff537a0c8ddd532ff56d7740d34f` 已触发 GitHub Actions 运行 `42350904727`，工作流 `E7 B quality gate` 最终结论为 `success`：
+
+`https://github.com/Delario17/B08-E7/actions/runs/42350904727`
+
 main 分支保护、故意失败 PR 的合并拦截以及同一 PR 修复恢复属于组长使用管理员权限执行一次的共同任务；个人报告不将尚未取得的组级证据标为完成。
 
 ## 7. 证据索引
