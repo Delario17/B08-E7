@@ -32,11 +32,18 @@
 
 ## 3. CI 与合并门禁
 
-| 阶段 | 运行记录 | Head SHA | 结果及产物 |
-|---|---|---|---|
-| main 正常运行 | [42172923149](https://github.com/Delario17/B08-E7/actions/runs/42172923149) | `38e8d581afc2a92873e82b3be2084bb610e8fa8e` | success；待补下载的 artifact |
-| 个人提交正常运行 | [42173141208](https://github.com/Delario17/B08-E7/actions/runs/42173141208) | `a0732de641791196b1cb4e94fcad98acdd59587a` | push 检查 success；待补下载的 artifact |
-| 故意失败 | 待补 | 待补 | 待补错误断言日志及 artifact |
-| 修复恢复 | 待补 | 待补 | 待补同一 PR 最新提交的通过记录及 artifact |
+个人阶段在 2026-11-06 完成 25 项测试和六项服务器门禁。全组贡献合入后，2026-11-09 由本人作为组长执行共享门禁演示。个人实验提交 `a0732de641791196b1cb4e94fcad98acdd59587a` 与共享演示提交分别记录。
 
-待补演示 PR 链接、main 保护快照（检查名、App ID、strict、enforce_admins）、普通合并拒绝日志与退出码、OPEN / BLOCKED 快照，以及修复后的 MERGED、mergeCommit 和 mergedAt。云服务器结果和个人提交的正常 CI 已核对，合并门禁演示仍待验收。
+| 阶段 | 运行记录 | Head SHA | 结论 | 已下载 artifact |
+|---|---|---|---|---|
+| 全组正常版本 | [42564630236](https://github.com/Delario17/B08-E7/actions/runs/42564630236) | `963b2f4bc883a43b0e12626f368efd9a83874bca` | success | `work/ci-normal/artifacts-42564630236/e7-b-evidence-42564630236-1` |
+| 故意失败 | [42568167906](https://github.com/Delario17/B08-E7/actions/runs/42568167906) | `5fa865c2126a53aeec9ec37041bed938dcb84c52` | failure | `work/ci-rejection/artifacts-42568167906/e7-b-evidence-42568167906-1` |
+| 同一 PR 修复恢复 | [42568713119](https://github.com/Delario17/B08-E7/actions/runs/42568713119) | `addb1e65fd60e62a9eef55557ce068117a62d8a8` | success | `work/ci-recovery/artifacts-42568713119/e7-b-evidence-42568713119-1` |
+
+本人原个人提交的 [CI 42173141208](https://github.com/Delario17/B08-E7/actions/runs/42173141208) 通过。上表使用全组贡献合入后的正常基线及本次共享演示的三次 artifact，个人服务器测试仍为 25 项；小组正常版本为 28 项，新增演示测试并修复后为 29 项。
+
+共享演示在 [PR #5](https://github.com/Delario17/B08-E7/pull/5) 完成。必需检查为 `e7-b-quality-gate`，App ID 为 `15368`，`strict=true`、`enforce_admins=true`。失败阶段为 `OPEN / BLOCKED`，普通合并退出码为 `1`。修复提交 `addb1e65fd60e62a9eef55557ce068117a62d8a8` 将 version 的预期退出码从 1 改回 0，CI 恢复成功、六项门禁通过；合并前状态为 `OPEN / CLEAN`。
+
+最终 `MERGED`，合并提交为 `9e054d0bde3175e73f6ef1745f2808de853837e6`，合并时间为 2026-11-09 13:44:45（中国标准时间）。完整失败日志、保护快照、PR 状态与恢复记录见仓库根目录的 `work/ci-rejection/`、`work/ci-setup/` 和 `work/ci-recovery/`。
+
+PR 的 head SHA 与 artifact 的实际检出 SHA 分列保存；完整对照及共享验收过程见 `docs/B08-E7合并门禁报告.md`。个人服务器证据仍位于 `/root/241250007/B08-E7/work/e7-student-01`，Mac 保存本次共享 CI 证据。
