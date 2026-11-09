@@ -1,0 +1,12 @@
+﻿学号,轨道,检查项,实际结果,证据路径,判定
+241250008,B,unit-tests,26 passed,work/e7-student-01/gate/unit-tests,PASS
+241250008,B,success,SUCCEEDED,work/e7-student-01/gate/success,PASS
+241250008,B,wrong-output,FAILED,work/e7-student-01/gate/wrong-output,PASS
+241250008,B,invalid-candidate,FAILED,work/e7-student-01/gate/invalid-candidate,PASS
+241250008,B,build-failed,FAILED,work/e7-student-01/gate/build-failed,PASS
+241250008,B,runtime-timeout,TIMED_OUT,work/e7-student-01/gate/runtime-timeout,PASS
+241250008,B,新增测试,独立1 passed，服务25增加到26,work/build-student-01/student-test.log,PASS
+241250008,B,正常CI,待执行,work/ci-normal,PENDING
+241250008,B,故意失败CI,待执行,work/ci-rejection,PENDING
+241250008,B,最终个人CI,见最终运行记录,work/ci-personal-final/run.json,CHECK_RECORD
+241250008,B,小组合并门禁,由组长统一演示并归档,组长后续提供保护、拒绝、恢复及合并记录,GROUP_LEAD
