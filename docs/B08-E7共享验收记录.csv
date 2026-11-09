@@ -1,0 +1,7 @@
+轨道,检查项,预期,实际结果,证据路径或链接,PASS或FAIL
+共同,正常CI,检查通过且artifact已下载,全组28项测试通过；六项门禁通过；运行42564630236,work/ci-normal/run.json；work/ci-normal/artifacts-42564630236/e7-b-evidence-42564630236-1,PASS
+共同,保护,必需检查正确且strict与enforce_admins为true,e7-b-quality-gate；App ID 15368；strict=true；enforce_admins=true,work/ci-setup/main-protection.json,PASS
+共同,故意失败,错误断言触发检查失败,运行42568167906；1 failed和28 passed；version预期1实际0,work/ci-rejection/run.json；work/ci-rejection/artifacts-42568167906/e7-b-evidence-42568167906-1,PASS
+共同,拒绝合并,OPEN及BLOCKED且普通合并退出非零,PR #5为OPEN/BLOCKED；普通合并退出1且日志说明策略拒绝,work/ci-rejection/PR.json；work/ci-rejection/merge-rejection.log；work/ci-rejection/merge-exit-code.txt,PASS
+共同,恢复,同一PR最新提交检查通过,运行42568713119成功；29项测试和六项门禁通过,work/ci-recovery/run.json；work/ci-recovery/artifacts-42568713119/e7-b-evidence-42568713119-1,PASS
+共同,合并,MERGED及mergeCommit及mergedAt记录齐全,PR #5已合并；9e054d0bde3175e73f6ef1745f2808de853837e6；2026-11-09T05:44:45Z,work/ci-recovery/PR-merged.json,PASS

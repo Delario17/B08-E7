@@ -3,8 +3,9 @@ B,正常,两轮构建与同镜像hello E3,第一轮MISSING_MAKE；第二轮与�
 B,故障,输出不符及无效候选及构建失败及超时均识别,四个故障场景均符合预期；门禁6/6通过,work/e7-student-01/gate/gate-result.json,PASS
 B,清理,运行超时容器已移除,第二轮构建成功后运行超时；检查返回No such container,work/e7-student-01/gate/runtime-timeout/evidence/cleanup-check/stderr.log,PASS
 共同,新增测试,输入预期明确且测试通过,拒绝第二条FROM；24→25项通过；单独执行退出0,work/build-student-01/student-test.log,PASS
-共同,正常CI,检查通过且artifact已下载,main及个人提交push均成功；待补下载产物,https://github.com/Delario17/B08-E7/actions/runs/42172923149,待补证据
-共同,保护,检查名正确且strict与enforce_admins为true,待提供保护配置快照,,待验收
-共同,拒绝合并,OPEN及BLOCKED且普通合并退出1,待提供失败运行和拒绝证据,,待验收
-共同,恢复,同一PR最新检查通过,待提供修复运行和产物,,待验收
-共同,合并,MERGED及mergeCommit及mergedAt记录齐全,待提供最终合并记录,,待验收
+共同,正常CI,检查通过且artifact已下载,全组28项测试通过；六项门禁通过；运行42564630236,work/ci-normal/run.json；work/ci-normal/artifacts-42564630236/e7-b-evidence-42564630236-1,PASS
+共同,保护,必需检查正确且strict与enforce_admins为true,e7-b-quality-gate；App ID 15368；strict=true；enforce_admins=true,work/ci-setup/main-protection.json,PASS
+共同,故意失败,错误断言触发检查失败,运行42568167906；1 failed和28 passed；version预期1实际0,work/ci-rejection/run.json；work/ci-rejection/artifacts-42568167906/e7-b-evidence-42568167906-1,PASS
+共同,拒绝合并,OPEN及BLOCKED且普通合并退出非零,PR #5为OPEN/BLOCKED；普通合并退出1且日志说明策略拒绝,work/ci-rejection/PR.json；work/ci-rejection/merge-rejection.log；work/ci-rejection/merge-exit-code.txt,PASS
+共同,恢复,同一PR最新提交检查通过,运行42568713119成功；29项测试和六项门禁通过,work/ci-recovery/run.json；work/ci-recovery/artifacts-42568713119/e7-b-evidence-42568713119-1,PASS
+共同,合并,MERGED及mergeCommit及mergedAt记录齐全,PR #5已合并；9e054d0bde3175e73f6ef1745f2808de853837e6；2026-11-09T05:44:45Z,work/ci-recovery/PR-merged.json,PASS
