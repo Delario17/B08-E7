@@ -1,0 +1,13 @@
+检查项,预期,实际结果,证据路径,判定
+修改前完整测试,全部通过,25 passed in 0.22s；exit_code=0,work/build-e7-zyl-before-20261108-025607/unit-tests/,PASS
+修改后完整测试,增加1项且全部通过,26 passed in 0.19s；exit_code=0,work/build-e7-zyl-after-20261108-025607/unit-tests/,PASS
+个人inspect失败测试,inspect失败后停止运行验证,一个通过标记；exit_code=0,work/build-e7-zyl-after-20261108-025607/student-test.log;work/build-e7-zyl-after-20261108-025607/student-test-exit-code.txt,PASS
+unit-tests,服务测试退出0,passed=true；exit_code=0,work/e7-zyl-20261108-025607/gate/unit-tests/stdout.log,PASS
+success,两轮构建后同镜像运行成功,MISSING_MAKE/1；第二轮0；SUCCEEDED/0；hello E3；output_matches=true,work/e7-zyl-20261108-025607/gate/success/evidence/result.json,PASS
+wrong-output,识别输出不匹配,FAILED/1；passed=true,work/e7-zyl-20261108-025607/gate/wrong-output/evidence/result.json,PASS
+invalid-candidate,构建前拒绝修改CMD的候选,FAILED/1；passed=true,work/e7-zyl-20261108-025607/gate/invalid-candidate/stdout.log,PASS
+build-failed,候选构建失败后停止验证,FAILED/1；passed=true,work/e7-zyl-20261108-025607/gate/build-failed/evidence/result.json,PASS
+runtime-timeout,第二轮成功后运行超时,第二轮0；TIMED_OUT/1；Docker client command exceeded 1s,work/e7-zyl-20261108-025607/gate/runtime-timeout/evidence/result.json,PASS
+超时容器清理,超时运行容器已移除,No such container: ffc9076406d112c9fe93bd999157a40939ebc7d5f2e27632539e4d10509938aa,work/e7-zyl-20261108-025607/gate/runtime-timeout/evidence/cleanup-check/stderr.log,PASS
+候选来源一致性,个人输入与正常场景候选哈希一致,92d1cb0b766427c2d598a0641f03b2e04bc702bfb3e9d7bda4541fd88b17d92c,work/e7-zyl-20261108-025607/input-candidate-sha256.txt;work/e7-zyl-20261108-025607/gate/success/evidence/result.json,PASS
+整体门禁,六项检查全部通过且整体退出0,passed=true；6项passed=true；gate退出0,work/e7-zyl-20261108-025607/gate/gate-result.json;work/e7-zyl-20261108-025607/gate-exit-code.txt,PASS
