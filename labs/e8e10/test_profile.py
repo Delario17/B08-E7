@@ -93,4 +93,32 @@ class Student241250007Tests(unittest.TestCase):
             ]
             self.assertEqual(recipes_before, recipes_after)
 
+class Student241250008E8Tests(unittest.TestCase):
+    def test_unknown_target_is_rejected_without_source_changes(self):
+        from lab import run
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / 'sample'
+            fixture(project)
+            report = scan(project)
+            report['findings'] = [{
+                'type': 'MISSING',
+                'target': 'unknown.o',
+                'dependency': 'config.h',
+            }]
+            before = {
+                path.name: path.read_bytes()
+                for path in project.iterdir() if path.is_file()
+            }
+
+            with self.assertRaisesRegex(ValueError, '^UNSUPPORTED_TARGET$'):
+                patch(project, report)
+
+            after = {
+                path.name: path.read_bytes()
+                for path in project.iterdir() if path.is_file()
+            }
+            self.assertEqual(after, before)
+            self.assertEqual(run(['git', 'status', '--porcelain'], project), '')
+
 if __name__=='__main__':unittest.main()
