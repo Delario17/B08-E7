@@ -39,4 +39,58 @@ class ProfileTests(unittest.TestCase):
         (self.p/'Makefile').write_text((self.p/'Makefile').read_text().replace('-O0','-include unknown.h'))
         with self.assertRaisesRegex(ValueError,'UNSUPPORTED_FLAGS'):scan(self.p)
 
+class Student241250007Tests(unittest.TestCase):
+    def test_e8_redundant_only_produces_no_patch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / 'sample'
+            fixture(project)
+            report = scan(project)
+            report['findings'] = [
+                f for f in report['findings']
+                if f['type'] == 'REDUNDANT'
+            ]
+            self.assertEqual(len(report['findings']), 1)
+
+            before = (project / 'Makefile').read_bytes()
+            diff, edits = patch(project, report)
+
+            self.assertEqual(diff, '')
+            self.assertEqual(edits, [])
+            self.assertEqual(
+                (project / 'Makefile').read_bytes(), before
+            )
+
+    def test_e9_mixed_patch_preserves_variable_and_recipes(self):
+        from lab import run
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / 'sample'
+            fixture(project, 'mixed')
+            before = (project / 'Makefile').read_bytes()
+
+            diff, edits = patch(project, scan(project))
+            self.assertEqual(edits[0]['style'], 'mixed')
+
+            candidate = Path(directory) / 'candidate.patch'
+            candidate.write_text(diff)
+            run([
+                'git', 'apply', str(candidate.resolve())
+            ], project)
+
+            after = (project / 'Makefile').read_bytes()
+            self.assertIn(b'HEADERS = unused.h', after)
+            self.assertIn(
+                b'main.o: main.c $(HEADERS) config.h', after
+            )
+
+            recipes_before = [
+                line for line in before.splitlines()
+                if line.startswith(b'\t')
+            ]
+            recipes_after = [
+                line for line in after.splitlines()
+                if line.startswith(b'\t')
+            ]
+            self.assertEqual(recipes_before, recipes_after)
+
 if __name__=='__main__':unittest.main()
