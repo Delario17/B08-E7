@@ -121,4 +121,51 @@ class Student241250008E8Tests(unittest.TestCase):
             self.assertEqual(after, before)
             self.assertEqual(run(['git', 'status', '--porcelain'], project), '')
 
+class Student241250008E9Tests(unittest.TestCase):
+    def test_shared_macro_adds_dependency_to_both_targets(self):
+        from lab import run
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / 'sample'
+            fixture(project, 'macro')
+            makefile = project / 'Makefile'
+            makefile.write_text(makefile.read_text().replace(
+                'helper.o: helper.c', 'helper.o: helper.c $(DEPS)'
+            ))
+            commit(project, 'student: share DEPS across object targets')
+            before = makefile.read_bytes()
+            initial = scan(project)
+            self.assertEqual(initial['declared']['helper.o'],
+                             ['helper.c', 'main.c', 'unused.h'])
+
+            diff, edits = patch(project, initial)
+            self.assertEqual(edits, [{
+                'target': 'main.o', 'dependency': 'config.h', 'style': 'macro'
+            }])
+            self.assertEqual(makefile.read_bytes(), before)
+            candidate = Path(directory) / 'candidate.patch'
+            candidate.write_text(diff)
+            run(['git', 'apply', '--check', str(candidate.resolve())], project)
+            run(['git', 'apply', str(candidate.resolve())], project)
+
+            after = makefile.read_bytes()
+            self.assertIn(b'DEPS = main.c unused.h config.h', after)
+            self.assertIn(b'main.o: $(DEPS)', after)
+            self.assertIn(b'helper.o: helper.c $(DEPS)', after)
+            self.assertEqual(
+                [line for line in before.splitlines() if line.startswith(b'\t')],
+                [line for line in after.splitlines() if line.startswith(b'\t')]
+            )
+            result = scan(project)
+            self.assertEqual(result['declared']['helper.o'],
+                             ['config.h', 'helper.c', 'main.c', 'unused.h'])
+            findings = {(f['type'], f['target'], f['dependency'])
+                        for f in result['findings']}
+            self.assertEqual(findings, {
+                ('REDUNDANT', 'main.o', 'unused.h'),
+                ('REDUNDANT', 'helper.o', 'config.h'),
+                ('REDUNDANT', 'helper.o', 'main.c'),
+                ('REDUNDANT', 'helper.o', 'unused.h'),
+            })
+
 if __name__=='__main__':unittest.main()
