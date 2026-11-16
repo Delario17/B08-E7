@@ -93,4 +93,51 @@ class Student241250007Tests(unittest.TestCase):
             ]
             self.assertEqual(recipes_before, recipes_after)
 
+class Student241250011Tests(unittest.TestCase):
+    def test_e8_unknown_target_preserves_source(self):
+        from lab import run
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "sample"
+            fixture(project)
+            report = scan(project)
+            report["findings"] = [
+                {"type": "MISSING", "target": "unknown.o", "dependency": "config.h"}
+            ]
+            before = (project / "Makefile").read_bytes()
+
+            with self.assertRaisesRegex(ValueError, "^UNSUPPORTED_TARGET$"):
+                patch(project, report)
+
+            self.assertEqual((project / "Makefile").read_bytes(), before)
+            self.assertEqual(
+                run(["git", "status", "--porcelain"], project).strip(), ""
+            )
+
+    def test_e9_macro_patch_preserves_reference_and_rechecks(self):
+        from lab import run
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "sample"
+            fixture(project, "macro")
+            before = (project / "Makefile").read_bytes()
+
+            diff, edits = patch(project, scan(project))
+            self.assertEqual(edits, [
+                {"target": "main.o", "dependency": "config.h", "style": "macro"}
+            ])
+            self.assertEqual((project / "Makefile").read_bytes(), before)
+
+            candidate = Path(directory) / "candidate.patch"
+            candidate.write_text(diff)
+            run(["git", "apply", str(candidate.resolve())], project)
+
+            lines = (project / "Makefile").read_text().splitlines()
+            self.assertIn("DEPS = main.c unused.h config.h", lines)
+            self.assertIn("main.o: $(DEPS)", lines)
+            self.assertEqual(scan(project)["findings"], [
+                {"type": "REDUNDANT", "target": "main.o", "dependency": "unused.h"}
+            ])
+
+
 if __name__=='__main__':unittest.main()
