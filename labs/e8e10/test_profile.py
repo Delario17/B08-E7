@@ -214,4 +214,79 @@ class Student241250011Tests(unittest.TestCase):
             ])
 
 
+class Student241250078Tests(unittest.TestCase):
+    def test_e8_stale_report_preserves_project_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "sample"
+            fixture(project)
+            report = scan(project)
+            report["commit"] = "0" * 40
+            before = {
+                path.name: path.read_bytes()
+                for path in project.iterdir() if path.is_file()
+            }
+
+            with self.assertRaisesRegex(ValueError, "^STALE_REPORT$"):
+                patch(project, report)
+
+            after = {
+                path.name: path.read_bytes()
+                for path in project.iterdir() if path.is_file()
+            }
+            self.assertEqual(after, before)
+
+    def test_e9_direct_patch_preserves_recipe_bytes(self):
+        from lab import run
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "sample"
+            fixture(project, "direct")
+            makefile = project / "Makefile"
+            before = makefile.read_bytes()
+            diff, edits = patch(project, scan(project))
+
+            self.assertEqual(edits, [{
+                "target": "main.o",
+                "dependency": "config.h",
+                "style": "direct",
+            }])
+            self.assertEqual(makefile.read_bytes(), before)
+
+            candidate = Path(directory) / "candidate.patch"
+            candidate.write_text(diff)
+            run(["git", "apply", str(candidate.resolve())], project)
+            after = makefile.read_bytes()
+
+            recipes = lambda content: [
+                line for line in content.splitlines() if line.startswith(b"\t")
+            ]
+            self.assertEqual(recipes(after), recipes(before))
+            self.assertIn(b"main.o: main.c unused.h config.h", after)
+
+    def test_e10_compile_failure_rolls_back_source(self):
+        from lab import validate
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / "sample"
+            fixture(project)
+            (project / "main.c").write_text(
+                '#include "config.h"\nint main(void) { invalid C; }\n'
+            )
+            commit(project, "introduce compile failure")
+            candidate = root / "candidate.patch"
+            candidate.write_text(patch(project, scan(project))[0])
+            before = (project / "Makefile").read_bytes()
+
+            result = validate(project, candidate, root / "validation")
+
+            self.assertFalse(result["accepted"])
+            self.assertTrue(result["checks"]["patch_applies"])
+            self.assertNotIn("build", result["checks"])
+            self.assertIn("COMMAND_FAILED", result["error"])
+            self.assertTrue(result["rollback"])
+            self.assertTrue(result["source_unchanged"])
+            self.assertEqual((project / "Makefile").read_bytes(), before)
+
+
 if __name__=='__main__':unittest.main()
