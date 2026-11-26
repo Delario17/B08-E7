@@ -93,6 +93,50 @@ class Student241250007Tests(unittest.TestCase):
             ]
             self.assertEqual(recipes_before, recipes_after)
 
+    def test_e10_rejects_patch_that_leaves_extra_header_missing(self):
+        from lab import validate
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / "project"
+            fixture(project)
+
+            main = project / "main.c"
+            main.write_text('#include "extra.h"\n' + main.read_text())
+            commit(project, "Add extra header")
+
+            report = scan(project)
+            report["findings"] = [
+                finding for finding in report["findings"]
+                if finding["type"] == "MISSING"
+                and finding["dependency"] == "config.h"
+            ]
+            candidate = root / "partial.patch"
+            candidate.write_text(patch(project, report)[0])
+            before = (project / "Makefile").read_bytes()
+
+            result = validate(project, candidate, root / "validation")
+
+            self.assertEqual(result["checks"], {
+                "patch_applies": True,
+                "build": True,
+                "test": True,
+                "header_change": True,
+                "no_missing": False,
+            })
+            self.assertFalse(result["accepted"])
+            self.assertTrue(result["rollback"])
+            self.assertTrue(result["source_unchanged"])
+            self.assertEqual((project / "Makefile").read_bytes(), before)
+
+            findings = json.loads(
+                (root / "validation/recheck.json").read_text()
+            )["findings"]
+            self.assertIn(
+                {"type": "MISSING", "target": "main.o", "dependency": "extra.h"},
+                findings,
+            )
+
 class Student241250008E8Tests(unittest.TestCase):
     def test_unknown_target_is_rejected_without_source_changes(self):
         from lab import run
