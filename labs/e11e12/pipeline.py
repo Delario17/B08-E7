@@ -10,7 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / 'labs/e8e10'), str(ROOT / 'labs/e11e12/vendor'), '/app']
-from lab import scan, patch, validate
+from lab import DEFAULT_PROFILE, patch
+from project_runtime import E3_PROFILE, E3_PROJECT_DIR, ProjectRuntime
 
 class Failure(ValueError):
     def __init__(self, code, message):
@@ -49,25 +50,29 @@ def command(argv, cwd, log):
         raise Failure('COMMAND_FAILED', f'{argv[0]} failed; see {log.name}')
     return p.stdout.strip()
 
-def snapshot(repo, revision, dest, logs):
+def snapshot(repo, revision, dest, logs, profile, project_dir):
     sha = command(['git','rev-parse','--verify',revision+'^{commit}'], repo, logs/(dest.name+'-resolve.log'))
     command(['git','clone','--no-hardlinks','--no-checkout',str(repo),str(dest)], repo, logs/(dest.name+'-clone.log'))
+    if project_dir != Path('.'):
+        command(['git', 'sparse-checkout', 'set', '--no-cone', f'/{project_dir}/'],
+                dest, logs / (dest.name + '-sparse.log'))
     command(['git','checkout','--detach',sha], dest, logs/(dest.name+'-checkout.log'))
-    # E8-E10 profile; fail early instead of silently ignoring other targets.
-    names = {p.name for p in dest.glob('*.c')}
-    if names != {'main.c','helper.c'} or not (dest/'config.h').is_file():
-        raise Failure('UNSUPPORTED_PROJECT', 'Expected main.c/helper.c/config.h and explicit Make rules')
-    return sha
+    project = dest / project_dir
+    names = {p.relative_to(project).as_posix() for pattern in profile.file_patterns
+             for p in project.glob(pattern) if p.suffix == '.c'}
+    expected = {source for _, source in profile.sources}
+    if names != expected or not (project / profile.header).is_file() or not (project / 'Makefile').is_file():
+        raise Failure('UNSUPPORTED_PROJECT', f'Files do not match the {profile.name} profile')
+    return sha, project
 
-def full(project, folder):
-    from buildchecker.fullcheck import full_check
-    report = full_check(project, folder)
+def full(runtime, project, folder):
+    report = runtime.run('full', project, folder)
     if report.get('status') != 'SUCCEEDED':
         raise Failure('FULL_CHECK_FAILED', str(report.get('error', report.get('error_code'))))
     return report
 
-def normalized(findings):
-    return sorted((f['type'],f['target'],f['dependency']) for f in findings if f['target'] in ('main.o','helper.o'))
+def normalized(findings, targets):
+    return sorted((f['type'],f['target'],f['dependency']) for f in findings if f['target'] in targets)
 
 def execute(request, out, job_id=None):
     job_id = job_id or 'job-'+uuid.uuid4().hex
@@ -81,6 +86,8 @@ def execute(request, out, job_id=None):
         envelope = {'schema_version':'e11e12-1','job_id':job_id,'trace_id':trace_id,'kind':name,
                     'commit':commit,'status':'SUCCEEDED','data':payload,
                     'artifacts':[artifact(p,out,job_id) for p in files]}
+        if name != 'draft' and runtime.image_id:
+            envelope['execution_image_id'] = runtime.image_id
         save(out/(name+'.json'),envelope)
         result['stages'].append({'name':name,'artifact':artifact(out/(name+'.json'),out,job_id)})
         return envelope
@@ -88,35 +95,49 @@ def execute(request, out, job_id=None):
         mode=request['mode']
         if mode not in ('e11-a','e11-b','e12'):
             raise Failure('INVALID_REQUEST','Unknown mode')
+        requested_profile = request.get('project_profile')
+        if requested_profile is None:
+            profile, project_dir = DEFAULT_PROFILE, Path('.')
+        elif mode == 'e12' and requested_profile == E3_PROFILE.name:
+            profile, project_dir = E3_PROFILE, E3_PROJECT_DIR
+            result['project_profile'] = profile.name
+        else:
+            raise Failure('UNSUPPORTED_PROJECT', 'Unknown profile for this mode')
+        logs = out / 'logs'
+        runtime = ProjectRuntime(profile, logs)
         repo=Path(request['repo']).resolve()
         if not repo.is_dir():
             raise Failure('INVALID_REQUEST','Repository missing')
-        base=out/'base-project'; target=out/'target-project'
-        base_sha=snapshot(repo,request['base'],base,out/'logs')
-        target_sha=snapshot(repo,request['target'],target,out/'logs')
+        base_sha, base = snapshot(repo, request['base'], out/'base-project', logs, profile, project_dir)
+        target_sha, target = snapshot(repo, request['target'], out/'target-project', logs, profile, project_dir)
         result.update(base_commit=base_sha,target_commit=target_sha)
         if mode in ('e11-b','e12'):
             from draft.autobuild import auto_build
             candidate=Path(request['candidate']).resolve()
-            draft=auto_build(target,candidate,out/'draft-build',request.get('expected_output','1'),timeout=request.get('build_timeout',600))
+            draft=auto_build(target,candidate,out/'draft-build',request.get('expected_output',profile.expected_output),timeout=request.get('build_timeout',600))
             if draft['status']!='SUCCEEDED':
                 raise Failure('DRAFT_FAILED',draft.get('error','Inspect draft-build logs'))
+            if profile is E3_PROFILE:
+                if not os.environ.get('E11E12_HOST_ROOT'):
+                    raise Failure('INVALID_EXECUTION_ENV', 'Run through the E11–E12 host launcher')
+                runtime = ProjectRuntime(profile, logs, draft['attempts'][-1]['image_id'])
+                result['execution_image_id'] = runtime.image_id
             stage('draft',target_sha,draft,[out/'draft-build/result.json'])
         if mode in ('e11-a','e12'):
-            base_full=full(base,out/'baseline-full')
-            old=scan(base)
+            targets = [target_name for target_name, _ in profile.sources]
+            base_full=full(runtime,base,out/'baseline-full')
+            old=runtime.run('scan', base, out/'baseline-cache.json')
             edges=json.loads((out/'baseline-full/actual-graph.json').read_text())
-            projected={t:sorted({e['dependency'] for e in edges if e['target']==t}) for t in ('main.o','helper.o')}
+            projected={t:sorted({e['dependency'] for e in edges if e['target']==t}) for t in targets}
             if projected != old['actual']:
                 raise Failure('GRAPH_MISMATCH','BuildChecker baseline differs from GCC observations')
             old['actual']=projected
             save(out/'baseline-cache.json',old)
             baseline=stage('full-check',base_sha,base_full,[out/'baseline-full/actual-graph.json',out/'baseline-full/findings.json',out/'baseline-cache.json'])
             check_envelope(baseline,base_sha,'full-check')
-            current=scan(target,old)
-            save(out/'incremental-report.json',current)
-            reference=full(target,out/'target-full')
-            if normalized(reference['findings']) != normalized(current['findings']):
+            current=runtime.run('scan', target, out/'incremental-report.json', out/'baseline-cache.json')
+            reference=full(runtime,target,out/'target-full')
+            if normalized(reference['findings'], targets) != normalized(current['findings'], targets):
                 raise Failure('FINDINGS_MISMATCH','Incremental/full object-target findings differ')
             md_envelope=stage('incremental-check',target_sha,current,[out/'incremental-report.json',out/'target-full/findings.json'])
         else:
@@ -141,10 +162,10 @@ def execute(request, out, job_id=None):
             patchfile=out/'candidate.patch';patchfile.write_text(diff,encoding='utf-8')
             save(out/'repair-plan.json',edits)
             stage('repair',target_sha,{'edits':edits,'input_report':artifact(out/(md_envelope['kind']+'.json'),out,job_id)},[patchfile,out/'repair-plan.json'])
-            verdict=validate(target,patchfile,out/'validation')
+            verdict=runtime.run('validate', target, out/'validation', patchfile)
             if not verdict['accepted']:
                 raise Failure('REPAIR_REJECTED',str(verdict))
-            final=full(target,out/'final-full')
+            final=full(runtime,target,out/'final-full')
             if any(f['type']=='MISSING' for f in final['findings']):
                 (target/'Makefile').write_bytes(before)
                 raise Failure('RECHECK_FAILED','MD remains; working-copy declaration restored')
