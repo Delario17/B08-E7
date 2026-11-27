@@ -331,4 +331,66 @@ class Student241250008E10Tests(unittest.TestCase):
             self.assertEqual(json.loads((evidence / 'validation.json').read_text()),
                              result)
 
+
+class Student241250011E10Tests(unittest.TestCase):
+    def test_invalid_compiler_option_rejects_candidate(self):
+        import difflib
+        import hashlib
+        from lab import validate
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / "sample"
+            fixture(project)
+
+            before = {
+                p.name: p.read_bytes()
+                for p in project.iterdir() if p.is_file()
+            }
+            original = (project / "Makefile").read_text()
+
+            changed = original.replace(
+                "main.o: main.c unused.h",
+                "main.o: main.c unused.h config.h",
+            ).replace(
+                "gcc $(CFLAGS) -c main.c",
+                "gcc -fstudent-invalid-option $(CFLAGS) -c main.c",
+            )
+
+            candidate = root / "compile-failure.patch"
+            candidate.write_text("".join(difflib.unified_diff(
+                original.splitlines(True),
+                changed.splitlines(True),
+                fromfile="a/Makefile",
+                tofile="b/Makefile",
+            )))
+
+            result = validate(project, candidate, root / "validation")
+
+            self.assertTrue(result["checks"]["patch_applies"])
+            self.assertNotIn("build", result["checks"])
+            self.assertIn("COMMAND_FAILED", result["error"])
+            self.assertFalse(result["accepted"])
+            self.assertTrue(result["rollback"])
+            self.assertTrue(result["source_unchanged"])
+
+            after = {
+                p.name: p.read_bytes()
+                for p in project.iterdir() if p.is_file()
+            }
+            self.assertEqual(after, before)
+
+            print("\n241250011 E10 compile-failure evidence:")
+            print(json.dumps({
+                "validation": result,
+                "source_files_unchanged": after == before,
+                "makefile_before_sha256": hashlib.sha256(
+                    before["Makefile"]
+                ).hexdigest(),
+                "makefile_after_sha256": hashlib.sha256(
+                    after["Makefile"]
+                ).hexdigest(),
+            }, ensure_ascii=False, indent=2))
+
+
 if __name__=='__main__':unittest.main()
