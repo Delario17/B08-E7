@@ -13,3 +13,9 @@ E8 的直接声明风格补丁保留原 RD 和编译配方。受限显式规则�
 盛浩宇，241250008，2026-11-11。选择手册中的共享变量影响分析自主任务，新增独立测试，将 main.o 和 helper.o 绑定同一 DEPS。通过精确声明集合和 RD 集合断言记录跨目标传播，同时保存原始输入和应用副本。
 
 该选择展示参考 macro 策略的作用范围。验证为 11 项测试通过，独立证据为 `work/e9-B-manual.cj66BK/shared-variable-analysis/impact-summary.json`。后续目标局部修复可结合变量引用关系设计。
+
+## E10 候选质量与写回
+
+盛浩宇，241250008，2026-11-25。自主任务选择能够构建但保留 MD 的候选，以 -O0 到 -O1 的补丁作为独立输入。要求应用、构建与初始测试通过后，仍由头文件变化和依赖重检检查剩余 MD，任一失败即拒绝写回。
+
+测试要求 checks.header_change=False、checks.no_missing=False、accepted=False，并比较所有源文件 SHA-256。实际 17 项测试通过，独立证据为 `work/e10-B-manual.DkVjCE/student-remaining-md/verification.json`。原参考接受策略与源目录保护逻辑沿用小组实现。
