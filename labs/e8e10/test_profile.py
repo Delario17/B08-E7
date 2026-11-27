@@ -333,4 +333,46 @@ class Student241250078Tests(unittest.TestCase):
             self.assertEqual((project / "Makefile").read_bytes(), before)
 
 
+class Student241250008E10Tests(unittest.TestCase):
+    def test_buildable_candidate_with_missing_dependency_is_rejected(self):
+        import difflib
+        from lab import run, validate
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / 'sample'
+            fixture(project)
+            before = {path.name: path.read_bytes()
+                      for path in project.iterdir() if path.is_file()}
+            original = before['Makefile'].decode()
+            changed = original.replace('CFLAGS = -O0', 'CFLAGS = -O1')
+            candidate = root / 'remaining-md.patch'
+            candidate.write_text(''.join(difflib.unified_diff(
+                original.splitlines(True), changed.splitlines(True),
+                fromfile='a/Makefile', tofile='b/Makefile'
+            )))
+
+            evidence = root / 'validation'
+            result = validate(project, candidate, evidence)
+            self.assertEqual(result['checks'], {
+                'patch_applies': True, 'build': True, 'test': True,
+                'header_change': False, 'no_missing': False,
+            })
+            self.assertIsNone(result['error'])
+            self.assertFalse(result['accepted'])
+            self.assertTrue(result['rollback'])
+            self.assertTrue(result['source_unchanged'])
+            after = {path.name: path.read_bytes()
+                     for path in project.iterdir() if path.is_file()}
+            self.assertEqual(after, before)
+            self.assertEqual(run(['git', 'status', '--porcelain'], project), '')
+            recheck = json.loads((evidence / 'recheck.json').read_text())
+            missing = {(f['target'], f['dependency'])
+                       for f in recheck['findings'] if f['type'] == 'MISSING'}
+            self.assertEqual(missing, {('main.o', 'config.h')})
+            self.assertEqual(run(['./app'], evidence / 'sandbox').strip(), '1')
+            self.assertIn('VALUE 2', (evidence / 'sandbox/config.h').read_text())
+            self.assertEqual(json.loads((evidence / 'validation.json').read_text()),
+                             result)
+
 if __name__=='__main__':unittest.main()
