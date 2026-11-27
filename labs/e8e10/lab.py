@@ -1,6 +1,26 @@
 """E8-E10 teaching profile: explicit C/Make rules, GCC dependency observation."""
 import argparse, csv, difflib, json, re, shutil, subprocess, time
+from dataclasses import dataclass
 from pathlib import Path
+
+
+@dataclass(frozen=True)
+class MakeProfile:
+    name: str = 'GCC_LOCAL_HEADERS_EXPLICIT_MAKE'
+    sources: tuple[tuple[str, str], ...] = (('main.o', 'main.c'), ('helper.o', 'helper.c'))
+    allowed_flags: tuple[str, ...] = ('-O0', '-O1', '-O0 -DMODE=1')
+    include_cppflags: bool = False
+    file_patterns: tuple[str, ...] = ('*',)
+    make_target: str = 'app'
+    executable: str = './app'
+    expected_output: str = '1'
+    changed_output: str = '2'
+    header: str = 'config.h'
+    header_before: str | None = None
+    header_after: str = '#define VALUE 2\n'
+
+
+DEFAULT_PROFILE = MakeProfile()
 
 def save(p, data):
     p=Path(p); p.parent.mkdir(parents=True,exist_ok=True)
@@ -31,11 +51,12 @@ def commit(p, msg):
     run(['git','add','.'],p); run(['git','commit','-m',msg],p)
     return run(['git','rev-parse','HEAD'],p).strip()
 
-def declarations(p):
+def declarations(p, profile=DEFAULT_PROFILE):
     text=(p/'Makefile').read_text()
-    variables=dict(re.findall(r'^(\w+)\s*=\s*(.*)$',text,re.M))
+    assignment = r'^(\w+)\s*:?=\s*(.*)$' if profile.include_cppflags else r'^(\w+)\s*=\s*(.*)$'
+    variables=dict(re.findall(assignment,text,re.M))
     graph={}
-    for target in ['main.o','helper.o']:
+    for target, _ in profile.sources:
         m=re.search(r'^'+re.escape(target)+r': ([^\n]*)$',text,re.M)
         if not m: raise ValueError('UNSUPPORTED_RULE '+target)
         dep=m[1]
@@ -43,18 +64,22 @@ def declarations(p):
             dep=re.sub(r'\$\((\w+)\)',lambda x:variables.get(x[1],x[0]),dep)
         if '$' in dep or '%' in dep or '|' in dep: raise ValueError('UNSUPPORTED_DECLARATION')
         graph[target]=sorted(set(dep.split()))
-    return graph,variables.get('CFLAGS','')
+    flags = variables.get('CFLAGS', '')
+    if profile.include_cppflags:
+        flags = ' '.join(filter(None, (variables.get('CPPFLAGS'), flags)))
+    return graph, flags
 
-def scan(p, old=None):
-    start=time.perf_counter(); declared,flags=declarations(p)
-    if flags not in ['-O0','-O1','-O0 -DMODE=1']: raise ValueError('UNSUPPORTED_FLAGS')
+def scan(p, old=None, *, profile=DEFAULT_PROFILE):
+    start=time.perf_counter(); declared,flags=declarations(p, profile)
+    if flags not in profile.allowed_flags: raise ValueError('UNSUPPORTED_FLAGS')
     # Conservative invalidation: all local preprocessor lines, source set and recipes.
-    files={x.name:x.read_text() for x in sorted(p.glob('*')) if x.suffix in ['.c','.h']}
+    paths = sorted({path for pattern in profile.file_patterns for path in p.glob(pattern)})
+    files = {x.relative_to(p).as_posix(): x.read_text() for x in paths if x.suffix in ('.c', '.h')}
     key={'directives':{n:[l for l in t.splitlines() if l.lstrip().startswith('#')] for n,t in files.items()},
          'recipes':[l for l in (p/'Makefile').read_text().splitlines() if l.startswith('\t')],
          'flags':flags,'compiler':run(['gcc','--version'],p).splitlines()[0]}
     actual={}; refreshed=[]; reused=[]
-    for target,source in [('main.o','main.c'),('helper.o','helper.c')]:
+    for target,source in profile.sources:
         if old and old['key']==key and target in old['actual']:
             actual[target]=old['actual'][target]; reused.append(target)
         else:
@@ -67,7 +92,7 @@ def scan(p, old=None):
             findings.extend({'type':kind,'target':t,'dependency':d} for d in sorted(edges))
     current={ (f['type'],f['target'],f['dependency']) for f in findings}
     previous={ (f['type'],f['target'],f['dependency']) for f in old['findings']} if old else set()
-    return {'schema_version':'e8e10-1','profile':'GCC_LOCAL_HEADERS_EXPLICIT_MAKE',
+    return {'schema_version':'e8e10-1','profile':profile.name,
             'commit':run(['git','rev-parse','HEAD'],p).strip(),'key':key,'actual':actual,'declared':declared,
             'findings':findings,'added':[list(x) for x in sorted(current-previous)],
             'resolved':[list(x) for x in sorted(previous-current)],'refreshed':refreshed,'reused':reused,
@@ -94,7 +119,7 @@ def patch(p,report):
     diff=''.join(difflib.unified_diff(original.splitlines(True),changed.splitlines(True),fromfile='a/Makefile',tofile='b/Makefile'))
     return diff,edits
 
-def validate(p, patchfile, evidence, fail_test=False):
+def validate(p, patchfile, evidence, fail_test=False, *, profile=DEFAULT_PROFILE):
     evidence.mkdir(parents=True); before=(p/'Makefile').read_bytes()
     sandbox=evidence/'sandbox'; shutil.copytree(p,sandbox,ignore=shutil.ignore_patterns('.git','*.o','app'))
     run(['git','init','-b','main'],sandbox)
@@ -105,13 +130,25 @@ def validate(p, patchfile, evidence, fail_test=False):
     try:
         run(['git','apply','--check',str(patchfile.resolve())],sandbox); checks['patch_applies']=True
         run(['git','apply',str(patchfile.resolve())],sandbox)
-        log=run(['make','clean'],sandbox)+run(['make','app'],sandbox);(evidence/'build.log').write_text(log);checks['build']=True
-        output=run(['./app'],sandbox).strip(); checks['test']=output==('99' if fail_test else '1')
+        build = ['make', profile.make_target]
+        log=run(['make','clean'],sandbox)+run(build,sandbox);(evidence/'build.log').write_text(log);checks['build']=True
+        output=run([profile.executable],sandbox).strip(); checks['test']=output==('99' if fail_test else profile.expected_output)
         # Real header-change build checks the originally broken incremental behavior.
-        time.sleep(1.05); (sandbox/'config.h').write_text('#define VALUE 2\n')
-        (evidence/'incremental.log').write_text(run(['make','app'],sandbox))
-        checks['header_change']=run(['./app'],sandbox).strip()=='2'
-        recheck=scan(sandbox); save(evidence/'recheck.json',recheck)
+        time.sleep(1.05)
+        header = sandbox / profile.header
+        if profile.header_before is None:
+            header.write_text(profile.header_after)
+        else:
+            original_header = header.read_text()
+            if original_header.count(profile.header_before) != 1:
+                raise ValueError('UNEXPECTED_HEADER_BASELINE')
+            header.write_text(original_header.replace(profile.header_before, profile.header_after, 1))
+        (evidence/'incremental.log').write_text(run(build,sandbox))
+        changed_output = run([profile.executable],sandbox).strip()
+        if profile is not DEFAULT_PROFILE:
+            save(evidence / 'program-output.json', {'initial': output, 'after_header_change': changed_output})
+        checks['header_change']=changed_output==profile.changed_output
+        recheck=scan(sandbox, profile=profile); save(evidence/'recheck.json',recheck)
         checks['no_missing']=not any(f['type']=='MISSING' for f in recheck['findings'])
     except (ValueError,subprocess.TimeoutExpired) as ex: error=str(ex)
     accepted=bool(checks) and all(checks.values()) and error is None
